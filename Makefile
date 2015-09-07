@@ -33,7 +33,7 @@ clean:
 	$(LLVM_DIS) $< -o=$@
 
 %_test: %_test.o %.o
-	gcc $< $(patsubst %_test.o,%.o,$<) -o $@
+	gcc $< $(patsubst %_test.o,%.o,$<) -lpthread -o $@
 
 %.o: %.c
 	clang -c -o $@ $< -Itesting
