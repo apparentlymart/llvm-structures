@@ -32,6 +32,11 @@ int ptr_eq(void *a, void *b, const char *desc) {
     return a == b;
 }
 
+int int_eq(int a, int b, const char *desc) {
+    ok(a == b, "%s: %d == %d", desc, a, b);
+    return a == b;
+}
+
 void test_group(const char *name, subtests ptr) {
     printf("# %s\n", name);
     ptr();

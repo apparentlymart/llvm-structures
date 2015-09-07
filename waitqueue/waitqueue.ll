@@ -53,7 +53,7 @@ define void @waitqueue_item_init(%waitqueue_item* %item, %waitqueue_func* %func,
     ret void
 }
 
-define void @waitqueue_wait_hipri(%waitqueue* %queue, %waitqueue_item* %item) alwaysinline {
+define void @waitqueue_wait_hipri(%waitqueue* %queue, %waitqueue_item* %item) {
     %lock_p = getelementptr %waitqueue, %waitqueue* %queue, i32 0, i32 1
     %queue_listhead_p = getelementptr %waitqueue, %waitqueue* %queue, i32 0, i32 0
     %item_listhead_p = getelementptr %waitqueue_item, %waitqueue_item* %item, i32 0, i32 0
@@ -70,7 +70,7 @@ define void @waitqueue_wait_hipri(%waitqueue* %queue, %waitqueue_item* %item) al
     ret void
 }
 
-define void @waitqueue_wait_lopri(%waitqueue* %queue, %waitqueue_item* %item) alwaysinline {
+define void @waitqueue_wait_lopri(%waitqueue* %queue, %waitqueue_item* %item) {
     %lock_p = getelementptr %waitqueue, %waitqueue* %queue, i32 0, i32 1
     %queue_listhead_p = getelementptr %waitqueue, %waitqueue* %queue, i32 0, i32 0
     %item_listhead_p = getelementptr %waitqueue_item, %waitqueue_item* %item, i32 0, i32 0
@@ -82,6 +82,56 @@ define void @waitqueue_wait_lopri(%waitqueue* %queue, %waitqueue_item* %item) al
         %llist_head* %queue_listhead_p
     )
 
+    call void @spinlock_unlock(i8* %lock_p);
+
+    ret void
+}
+
+define void @waitqueue_cancel(%waitqueue* %queue, %waitqueue_item* %item) {
+    %lock_p = getelementptr %waitqueue, %waitqueue* %queue, i32 0, i32 1
+    %item_listhead_p = getelementptr %waitqueue_item, %waitqueue_item* %item, i32 0, i32 0
+
+    call void @spinlock(i8* %lock_p);
+
+    call void @llist_del(
+        %llist_head* %item_listhead_p
+    )
+
+    call void @spinlock_unlock(i8* %lock_p);
+
+    ret void
+}
+
+define void @waitqueue_notify(%waitqueue* %queue) {
+entry:
+    %lock_p = getelementptr %waitqueue, %waitqueue* %queue, i32 0, i32 1
+    %queue_listhead_p = getelementptr %waitqueue, %waitqueue* %queue, i32 0, i32 0
+
+    call void @spinlock(i8* %lock_p);
+
+    %item_pp = getelementptr %waitqueue, %waitqueue* %queue, i32 0, i32 0, i32 0
+    %item_listhead_p = load %llist_head*, %llist_head** %item_pp
+    %item_p = bitcast %llist_head* %item_listhead_p to %waitqueue_item*
+
+    %empty_list = icmp eq %llist_head* %item_listhead_p, %queue_listhead_p
+    br i1 %empty_list, label %done, label %cont
+cont:
+
+    ; Remove the top item from the queue
+    call void @llist_del(
+        %llist_head* %item_listhead_p
+    )
+
+    %func_pp = getelementptr %waitqueue_item, %waitqueue_item* %item_p, i32 0, i32 1
+    %ctx_pp = getelementptr %waitqueue_item, %waitqueue_item* %item_p, i32 0, i32 2
+    %func_p = load %waitqueue_func*, void (i8*)** %func_pp
+    %ctx_p = load %waitqueue_ctx*, %waitqueue_ctx** %ctx_pp
+
+    ; Call the callback function
+    call void %func_p(%waitqueue_ctx* %ctx_p)
+    br label %done
+
+done:
     call void @spinlock_unlock(i8* %lock_p);
 
     ret void
