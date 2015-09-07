@@ -1,3 +1,5 @@
 *.s
 *.o
 *_test
+*.bc
+*.llo
